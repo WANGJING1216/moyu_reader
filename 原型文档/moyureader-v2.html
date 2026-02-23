@@ -1,0 +1,1863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>摸鱼阅读 · PRD v1.3 交互原型</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --bg: #EDEDED;
+  --white: #FFFFFF;
+  --nav: #F7F7F7;
+  --border: #E0E0E0;
+  --txt: #1A1A1A;
+  --muted: #888;
+  --green: #07C160;
+  --blue: #1A7FD4;
+  --red: #FF3B30;
+  --time-c: #ABABAB;
+  --bubble-r: 4px 18px 18px 18px;
+  --dur: 0.28s;
+  --ease: cubic-bezier(0.4,0,0.2,1);
+}
+
+html, body {
+  height: 100%;
+  background: #111;
+  font-family: -apple-system, 'PingFang SC', 'Noto Sans SC', sans-serif;
+  overflow: hidden;
+}
+
+/* ─── OUTER SHELL ─── */
+.shell {
+  display: flex;
+  height: 100vh;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+/* Left: Prototype Label */
+.proto-meta {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  z-index: 9999;
+  pointer-events: none;
+}
+.proto-meta h1 {
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 3px;
+  color: #444;
+  text-transform: uppercase;
+}
+.proto-meta span {
+  font-size: 11px;
+  color: #333;
+  letter-spacing: 1px;
+}
+
+/* Flow map on side */
+.flow-panel {
+  position: fixed;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 9998;
+}
+.flow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #333;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.flow-dot.active { background: var(--green); transform: scale(1.4); }
+.flow-dot::after {
+  content: attr(data-label);
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: #555;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.flow-dot:hover::after, .flow-dot.active::after { opacity: 1; }
+
+/* ─── PHONE ─── */
+.phone {
+  width: 390px;
+  height: 844px;
+  background: var(--bg);
+  border-radius: 52px;
+  overflow: hidden;
+  position: relative;
+  box-shadow:
+    0 0 0 1px #2A2A2A,
+    0 0 0 10px #1E1E1E,
+    0 40px 120px rgba(0,0,0,0.8);
+  display: flex;
+  flex-direction: column;
+}
+
+.dynamic-island {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 34px;
+  background: #000;
+  border-radius: 20px;
+  z-index: 200;
+  pointer-events: none;
+}
+
+/* ─── SCREENS ─── */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  transition: transform var(--dur) var(--ease), opacity var(--dur) var(--ease);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(100%);
+  border-radius: 52px;
+  overflow: hidden;
+}
+.screen.active {
+  pointer-events: all;
+  opacity: 1;
+  transform: translateX(0);
+}
+.screen.exit-left {
+  transform: translateX(-30%);
+  opacity: 0;
+}
+.screen.exit-right {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+/* ─── STATUS BAR ─── */
+.status-bar {
+  height: 54px;
+  background: var(--nav);
+  display: flex;
+  align-items: flex-end;
+  padding: 0 22px 8px;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.status-bar.transparent { background: transparent; }
+.s-time { font-size: 15px; font-weight: 600; color: var(--txt); }
+.s-icons { display: flex; align-items: center; gap: 5px; }
+
+/* ─── NAV BAR ─── */
+.nav-bar {
+  height: 44px;
+  background: var(--nav);
+  border-bottom: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  flex-shrink: 0;
+  position: relative;
+}
+.nav-back {
+  display: flex;
+  align-items: center;
+  color: var(--blue);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 8px 8px 8px 0;
+  gap: 2px;
+  z-index: 1;
+}
+.nav-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.nav-name { font-size: 17px; font-weight: 600; color: var(--txt); }
+.nav-sub { font-size: 11px; color: var(--muted); }
+.nav-more {
+  position: absolute;
+  right: 16px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.nav-more:active { background: rgba(0,0,0,0.06); }
+
+/* ─── CHAT AREA ─── */
+.chat-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
+  padding: 12px 0 8px;
+  display: flex;
+  flex-direction: column;
+  -webkit-overflow-scrolling: touch;
+}
+.chat-area::-webkit-scrollbar { display: none; }
+
+.timestamp {
+  text-align: center;
+  font-size: 11px;
+  color: var(--time-c);
+  background: rgba(0,0,0,0.06);
+  padding: 3px 10px;
+  border-radius: 4px;
+  display: inline-block;
+  margin: 0 auto 12px;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.msg-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 4px 12px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #F8BBD9, #CE93D8, #9FA8DA);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: transform 0.1s;
+}
+.avatar:active { transform: scale(0.94); }
+
+.bubble-wrap { flex: 1; padding-left: 10px; max-width: 85%; }
+.bubble {
+  background: var(--white);
+  border-radius: var(--bubble-r);
+  padding: 14px 15px;
+  position: relative;
+  overflow: hidden;
+}
+.bubble-content {
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--txt);
+  max-height: 470px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.bubble-content::-webkit-scrollbar { display: none; }
+.bubble-content p { text-indent: 2em; margin-bottom: 8px; }
+.bubble-content p:last-child { margin-bottom: 0; }
+.ch-title {
+  font-size: 15px;
+  font-weight: 600;
+  text-indent: 0 !important;
+  text-align: center;
+  color: #333;
+  padding-bottom: 12px;
+  margin-bottom: 12px !important;
+  border-bottom: 0.5px solid #F0F0F0;
+  letter-spacing: 1px;
+}
+.bubble::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 36px;
+  background: linear-gradient(transparent, rgba(255,255,255,0.92));
+  pointer-events: none;
+  border-radius: 0 0 18px 18px;
+}
+
+/* ─── INPUT BAR ─── */
+.input-bar {
+  height: 70px;
+  background: var(--nav);
+  border-top: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.btn-plus {
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid #B5B5B5;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  background: transparent;
+  flex-shrink: 0;
+}
+.btn-plus:active { background: rgba(255,59,48,0.1); border-color: var(--red); transform: scale(0.92); }
+.input-fake {
+  flex: 1;
+  height: 36px;
+  background: var(--white);
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 15px;
+  color: #C0C0C0;
+  cursor: default;
+}
+.btn-emoji {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+
+/* Home indicator */
+.home-ind {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--nav);
+  flex-shrink: 0;
+}
+.home-bar {
+  width: 134px; height: 5px;
+  background: #000;
+  border-radius: 3px;
+  opacity: 0.15;
+}
+
+/* ─── OVERLAYS ─── */
+/* Context Menu */
+.ctx-menu {
+  position: absolute;
+  top: 98px;
+  right: 16px;
+  background: rgba(30,30,30,0.92);
+  border-radius: 14px;
+  width: 190px;
+  z-index: 300;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  transform-origin: top right;
+  transform: scale(0.85);
+  opacity: 0;
+  transition: transform 0.2s var(--ease), opacity 0.2s;
+  pointer-events: none;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+}
+.ctx-menu.open {
+  transform: scale(1);
+  opacity: 1;
+  pointer-events: all;
+}
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  font-size: 15px;
+  color: #F0F0F0;
+  cursor: pointer;
+  border-bottom: 0.5px solid rgba(255,255,255,0.08);
+  transition: background 0.12s;
+}
+.ctx-item:last-child { border-bottom: none; }
+.ctx-item:active { background: rgba(255,255,255,0.1); }
+.ctx-icon { font-size: 17px; width: 22px; text-align: center; }
+
+/* ─── Chapter Screen (Full screen, PRD spec) ─── */
+#screen-chapter {
+  background: var(--white);
+}
+#screen-chapter .nav-bar {
+  background: var(--nav);
+  border-bottom: 0.5px solid var(--border);
+}
+.ch-list { flex: 1; overflow-y: auto; padding-bottom: 30px; }
+.ch-list::-webkit-scrollbar { display: none; }
+.ch-item {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 20px;
+  border-bottom: 0.5px solid #F5F5F5;
+  cursor: pointer;
+  transition: background 0.12s;
+  position: relative;
+}
+.ch-item:active { background: #F5F5F5; }
+/* Current chapter: blue dot + blue text, per PRD */
+.ch-item.cur { background: rgba(26,127,212,0.04); }
+.ch-item.cur::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--blue);
+  border-radius: 0 2px 2px 0;
+}
+.ch-num { font-size: 12px; color: #C8C8C8; width: 28px; flex-shrink: 0; }
+/* PRD: current=blue, read=gray, unread=black */
+.ch-name { flex: 1; font-size: 16px; color: var(--txt); }
+.ch-item.cur .ch-name { font-weight: 600; color: var(--blue); }
+.ch-item.read .ch-name { color: #AAAAAA; }
+.ch-status { font-size: 11px; margin-left: 8px; color: #CCCCCC; }
+.ch-item.cur .ch-status { color: var(--blue); }
+.ch-item.read .ch-status { color: #BBBBBB; }
+
+/* Dim overlay */
+.dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0);
+  z-index: 200;
+  pointer-events: none;
+  transition: background 0.25s;
+  border-radius: 52px;
+}
+.dim.show { background: rgba(0,0,0,0.4); pointer-events: all; }
+
+/* ─── BOSS KEY SCREEN ─── */
+#screen-boss {
+  background: var(--nav);
+}
+.boss-topbar {
+  height: 44px;
+  border-bottom: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--txt);
+  background: var(--nav);
+  flex-shrink: 0;
+}
+.chat-list-fake { flex: 1; overflow: hidden; background: var(--nav); }
+.fake-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--white);
+  border-bottom: 0.5px solid #EBEBEB;
+  gap: 12px;
+  cursor: default;
+}
+.fake-av {
+  width: 48px; height: 48px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+.av1 { background: linear-gradient(135deg,#84FAB0,#8FD3F4); }
+.av2 { background: linear-gradient(135deg,#FDDB92,#D1FDFF); }
+.av3 { background: linear-gradient(135deg,#a18cd1,#fbc2eb); }
+.fake-info { flex: 1; min-width: 0; }
+.fake-name { font-size: 16px; font-weight: 500; color: var(--txt); margin-bottom: 3px; }
+.fake-preview { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fake-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.fake-time { font-size: 12px; color: var(--muted); }
+.fake-badge {
+  width: 18px; height: 18px;
+  background: var(--red);
+  border-radius: 50%;
+  font-size: 11px;
+  color: #fff;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bottom-tabs {
+  height: 84px;
+  border-top: 0.5px solid var(--border);
+  background: var(--nav);
+  display: flex;
+  align-items: flex-start;
+  padding-top: 8px;
+  flex-shrink: 0;
+}
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.tab-item.on { color: var(--green); }
+
+/* ─── BOOKSHELF SCREEN ─── */
+#screen-shelf {
+  background: #F2F2F7;
+}
+#screen-shelf .nav-bar { background: #F2F2F7; border-bottom: 0.5px solid var(--border); }
+.shelf-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px 20px;
+}
+.shelf-area::-webkit-scrollbar { display: none; }
+.shelf-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  padding-left: 4px;
+}
+.book-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.book-card {
+  background: var(--white);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.18s, box-shadow 0.18s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+.book-card:active { transform: scale(0.96); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.book-cover {
+  height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  position: relative;
+}
+.book-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.35));
+}
+.cover1 { background: linear-gradient(135deg, #667eea, #764ba2); }
+.cover2 { background: linear-gradient(135deg, #f093fb, #f5576c); }
+.cover3 { background: linear-gradient(135deg, #4facfe, #00f2fe); }
+.cover4 { background: linear-gradient(135deg, #43e97b, #38f9d7); }
+.book-info { padding: 10px 12px 12px; }
+.book-title { font-size: 14px; font-weight: 600; color: var(--txt); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.book-author { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+.book-progress { height: 3px; background: #F0F0F0; border-radius: 2px; overflow: hidden; }
+.book-progress-bar { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.4s; }
+.book-progress-txt { font-size: 10px; color: var(--muted); margin-top: 4px; }
+.book-card.active-book { box-shadow: 0 0 0 2px var(--green), 0 4px 20px rgba(7,193,96,0.2); }
+
+.import-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  background: var(--white);
+  border-radius: 12px;
+  font-size: 15px;
+  color: var(--blue);
+  cursor: pointer;
+  border: 1.5px dashed #C8C8C8;
+  transition: all 0.15s;
+}
+.import-btn:active { background: #F5F5F5; }
+
+/* ─── FONT SETTING ─── */
+.font-sheet {
+  position: absolute;
+  bottom: 70px;
+  left: 0; right: 0;
+  background: var(--white);
+  border-radius: 20px 20px 0 0;
+  z-index: 260;
+  transform: translateY(110%);
+  transition: transform 0.28s var(--ease);
+  box-shadow: 0 -4px 30px rgba(0,0,0,0.12);
+  padding: 20px 24px 30px;
+}
+.font-sheet.open { transform: translateY(0); }
+.font-sheet-title {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 20px;
+  letter-spacing: 1px;
+}
+.font-options {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.font-opt {
+  flex: 1;
+  height: 52px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--txt);
+  font-weight: 500;
+}
+.font-opt.sel { border-color: var(--green); background: rgba(7,193,96,0.08); color: var(--green); }
+.font-opt:nth-child(1) { font-size: 13px; }
+.font-opt:nth-child(2) { font-size: 16px; }
+.font-opt:nth-child(3) { font-size: 19px; }
+.font-sheet-close {
+  width: 100%;
+  height: 44px;
+  background: #F5F5F5;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* ─── CONTACT SETTING ─── */
+#screen-contact {
+  background: #F2F2F7;
+}
+.contact-form { padding: 20px 16px; }
+.form-section {
+  background: var(--white);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.form-row {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 0.5px solid #F0F0F0;
+  gap: 12px;
+}
+.form-row:last-child { border-bottom: none; }
+.form-label { font-size: 15px; color: var(--txt); width: 80px; flex-shrink: 0; }
+.form-value {
+  flex: 1;
+  font-size: 15px;
+  color: var(--muted);
+  text-align: right;
+  cursor: text;
+}
+.form-arrow { color: #C8C8C8; font-size: 13px; }
+.avatar-picker {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0 16px;
+}
+.avatar-big {
+  width: 80px;
+  height: 80px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #F8BBD9, #CE93D8, #9FA8DA);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  position: relative;
+  cursor: pointer;
+}
+.avatar-edit-badge {
+  position: absolute;
+  bottom: -6px; right: -6px;
+  width: 24px; height: 24px;
+  background: var(--blue);
+  border-radius: 50%;
+  border: 2px solid var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: white;
+}
+
+/* ─── TOAST ─── */
+.toast {
+  position: absolute;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(0,0,0,0.75);
+  color: white;
+  font-size: 13px;
+  padding: 9px 20px;
+  border-radius: 20px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: all 0.25s;
+  z-index: 400;
+  backdrop-filter: blur(10px);
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ─── BOSS KEY flash ─── */
+.flash-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--white);
+  z-index: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.05s;
+  border-radius: 52px;
+}
+.flash-overlay.flash { opacity: 1; }
+
+/* ─── LONG PRESS INDICATOR ─── */
+.lp-ring {
+  position: absolute;
+  top: 170px;
+  left: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  z-index: 180;
+  pointer-events: none;
+}
+.lp-ring svg {
+  position: absolute;
+  inset: -6px;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+}
+.lp-ring circle {
+  fill: none;
+  stroke: var(--green);
+  stroke-width: 2.5;
+  stroke-dasharray: 164;
+  stroke-dashoffset: 164;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.5s linear;
+}
+.lp-ring.filling circle { stroke-dashoffset: 0; }
+
+/* Shimmer on bubble content for scroll invite */
+@keyframes scroll-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.scroll-hint {
+  text-align: center;
+  font-size: 11px;
+  color: #CCC;
+  padding: 4px 0 2px;
+  letter-spacing: 0.5px;
+  animation: scroll-bounce 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* ─── STATIC CHAT BUBBLES ─── */
+.avatar-static {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #F8BBD9, #CE93D8, #9FA8DA);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  user-select: none;
+}
+.bubble-recv {
+  border-radius: 4px 18px 18px 18px !important;
+  background: var(--white) !important;
+}
+.bubble-send {
+  border-radius: 18px 4px 18px 18px !important;
+  background: #9FE175 !important;
+}
+.bubble-text {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--txt);
+}
+.avatar-self {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #A8EDCE, #74B9FF);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  user-select: none;
+}
+.msg-row-self {
+  flex-direction: row-reverse;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.bubble-wrap-self {
+  padding-left: 0;
+  padding-right: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+.bubble-wrap-self .bubble {
+  max-width: 75%;
+}
+
+/* Chapter panel improvements */
+.ch-search {
+  margin: 10px 16px 0;
+  height: 34px;
+  background: #F2F2F7;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ch-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--txt);
+}
+.ch-search input::placeholder { color: #B0B0B0; }
+.ch-search-icon { color: #B0B0B0; font-size: 14px; }
+
+.ch-summary {
+  padding: 8px 20px 6px;
+  font-size: 11px;
+  color: #C0C0C0;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  border-bottom: 0.5px solid #F2F2F2;
+}
+
+.ch-item-inner {
+  flex: 1;
+  min-width: 0;
+}
+.ch-name { font-size: 15px; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-meta { font-size: 11px; color: #C8C8C8; margin-top: 2px; }
+.ch-item.cur .ch-meta { color: var(--green); }
+.ch-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; margin-left: 8px; }
+.ch-status-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #F2F2F2;
+  color: #AAAAAA;
+  white-space: nowrap;
+}
+.ch-item.cur .ch-status-badge { background: rgba(7,193,96,0.12); color: var(--green); }
+.ch-item.read .ch-status-badge { background: transparent; color: #CCCCCC; }
+.ch-mini-bar {
+  width: 40px; height: 3px;
+  background: #F0F0F0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ch-mini-fill { height: 100%; background: var(--green); border-radius: 2px; }
+.ch-item.read .ch-mini-fill { background: #D8D8D8; }
+.ch-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #C8C8C8;
+  font-size: 14px;
+}
+
+/* SVG icons helpers */
+svg { display: block; }
+
+/* ─── WELCOME / EMPTY STATE ─── */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted);
+}
+.empty-icon { font-size: 48px; opacity: 0.4; }
+.empty-title { font-size: 16px; color: #AAAAAA; }
+.empty-sub { font-size: 13px; color: #CCCCCC; text-align: center; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<div class="proto-meta">
+  <h1>MoYu Reader · Interactive Prototype</h1>
+  <span>摸鱼阅读 · 完整交互原型 · PRD v1.3</span>
+</div>
+
+<!-- Flow dots -->
+<div class="flow-panel">
+  <div class="flow-dot active" data-screen="reading" data-label="阅读"></div>
+  <div class="flow-dot" data-screen="chapter" data-label="章节目录"></div>
+  <div class="flow-dot" data-screen="boss" data-label="老板键"></div>
+  <div class="flow-dot" data-screen="shelf" data-label="书架"></div>
+  <div class="flow-dot" data-screen="contact" data-label="联系人"></div>
+</div>
+
+<div class="shell">
+<div class="phone">
+  <div class="dynamic-island"></div>
+
+  <!-- ══════════ SCREEN: READING ══════════ -->
+  <div class="screen active" id="screen-reading">
+    <div class="status-bar">
+      <span class="s-time" id="live-time">9:41</span>
+      <div class="s-icons">
+        <!-- Signal -->
+        <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="5" width="3" height="7" rx="1" fill="#1A1A1A"/><rect x="4.5" y="3" width="3" height="9" rx="1" fill="#1A1A1A"/><rect x="9" y="1" width="3" height="11" rx="1" fill="#1A1A1A"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="#1A1A1A" opacity="0.3"/></svg>
+        <!-- Wifi -->
+        <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 9.5C8.8 9.5 9.5 10.2 9.5 11S8.8 12.5 8 12.5 6.5 11.8 6.5 11 7.2 9.5 8 9.5Z" fill="#1A1A1A"/><path d="M3.8 7.3C4.9 6.2 6.4 5.5 8 5.5S11.1 6.2 12.2 7.3" stroke="#1A1A1A" stroke-width="1.4" fill="none" stroke-linecap="round"/><path d="M1.2 4.7C2.9 3 5.3 2 8 2s5.1 1 6.8 2.7" stroke="#1A1A1A" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+        <!-- Battery -->
+        <svg width="26" height="13" viewBox="0 0 26 13"><rect x="0" y="1.5" width="23" height="10" rx="3" stroke="#1A1A1A" stroke-width="1.2" fill="none"/><rect x="1.5" y="3" width="17" height="7" rx="1.5" fill="#1A1A1A"/><path d="M24 5V8C24.8 7.7 25.5 7 25.5 6.5S24.8 5.3 24 5Z" fill="#1A1A1A"/></svg>
+      </div>
+    </div>
+    <div class="nav-bar">
+      <div class="nav-back">
+        <svg width="10" height="17" viewBox="0 0 10 17" fill="none"><path d="M9 1L1 8.5L9 16" stroke="#1A7FD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="nav-center">
+        <span class="nav-name" id="contact-name-display">小美🌸</span>
+        <span class="nav-sub">在线</span>
+      </div>
+      <div class="nav-more" id="btn-menu">
+        <svg width="22" height="6" viewBox="0 0 22 6"><circle cx="3" cy="3" r="2.4" fill="#1A1A1A"/><circle cx="11" cy="3" r="2.4" fill="#1A1A1A"/><circle cx="19" cy="3" r="2.4" fill="#1A1A1A"/></svg>
+      </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="ctx-menu" id="ctx-menu">
+      <div class="ctx-item" id="menu-shelf">
+        <span class="ctx-icon">📚</span> 我的书架
+      </div>
+      <div class="ctx-item" id="menu-import">
+        <span class="ctx-icon">📄</span> 导入新书
+      </div>
+      <div class="ctx-item" id="menu-font">
+        <span class="ctx-icon">文</span> 调整字体
+      </div>
+      <div class="ctx-item" id="menu-contact">
+        <span class="ctx-icon">👤</span> 联系人设置
+      </div>
+      <div class="ctx-item" id="menu-selfavatar">
+        <span class="ctx-icon">🙂</span> 自己头像设置
+      </div>
+      <div class="ctx-item" id="menu-chatcustom">
+        <span class="ctx-icon">💬</span> 聊天内容自定义
+      </div>
+      <div class="ctx-item" id="menu-mode">
+        <span class="ctx-icon">🧭</span> 切换模式
+      </div>
+      <div class="ctx-item" style="opacity:0.35; pointer-events:none;">
+        <span class="ctx-icon">🎨</span> 切换皮肤（敬请期待）
+      </div>
+    </div>
+
+    <!-- Dim overlay for menus -->
+    <div class="dim" id="dim-reading"></div>
+
+    <!-- Chapter panel removed: now a full-screen sibling screen -->
+
+    <!-- Font Sheet -->
+    <div class="font-sheet" id="font-sheet">
+      <div class="font-sheet-title">字体大小</div>
+      <div class="font-options">
+        <div class="font-opt" data-size="14">小</div>
+        <div class="font-opt sel" data-size="16">中</div>
+        <div class="font-opt" data-size="18">大</div>
+      </div>
+      <div class="font-sheet-close" id="font-sheet-close">完成</div>
+    </div>
+
+    <!-- Long-press ring -->
+    <div class="lp-ring" id="lp-ring">
+      <svg viewBox="0 0 52 52">
+        <circle cx="26" cy="26" r="24"/>
+      </svg>
+    </div>
+
+    <div class="chat-area" id="chat-area">
+
+      <!-- ── 早晨静态聊天记录 ── -->
+      <div class="timestamp">上午 8:12</div>
+
+      <div class="msg-row">
+        <div class="avatar-static" id="avatar-static-1">🌸</div>
+        <div class="bubble-wrap">
+          <div class="bubble bubble-recv"><div class="bubble-text">早安！今天天气好好啊 ☀️</div></div>
+        </div>
+      </div>
+
+      <div class="msg-row msg-row-self">
+        <div class="avatar-self" id="self-avatar-1">😊</div>
+        <div class="bubble-wrap bubble-wrap-self">
+          <div class="bubble bubble-send"><div class="bubble-text">嗯嗯 出去玩啊</div></div>
+        </div>
+      </div>
+
+      <div class="msg-row">
+        <div class="avatar-static">🌸</div>
+        <div class="bubble-wrap">
+          <div class="bubble bubble-recv"><div class="bubble-text">对呀！你最近在看什么书啊，感觉你每次都在刷手机哈哈</div></div>
+        </div>
+      </div>
+
+      <div class="msg-row msg-row-self">
+        <div class="avatar-self">😊</div>
+        <div class="bubble-wrap bubble-wrap-self">
+          <div class="bubble bubble-send"><div class="bubble-text">没有啦，就是普通刷微信😅</div></div>
+        </div>
+      </div>
+
+      <div class="msg-row">
+        <div class="avatar-static">🌸</div>
+        <div class="bubble-wrap">
+          <div class="bubble bubble-recv"><div class="bubble-text">好吧好吧，你跟我说你现在看到哪里了！</div></div>
+        </div>
+      </div>
+
+      <div class="msg-row msg-row-self">
+        <div class="avatar-self">😊</div>
+        <div class="bubble-wrap bubble-wrap-self">
+          <div class="bubble bubble-send"><div class="bubble-text">……什么看到哪里了</div></div>
+        </div>
+      </div>
+
+      <div class="timestamp">上午 8:35</div>
+
+      <div class="msg-row">
+        <div class="avatar-static">🌸</div>
+        <div class="bubble-wrap">
+          <div class="bubble bubble-recv"><div class="bubble-text">《命运之轮》！我也在看这本，昨天看到第十六章哭死我了 😭</div></div>
+        </div>
+      </div>
+
+      <div class="msg-row msg-row-self">
+        <div class="avatar-self">😊</div>
+        <div class="bubble-wrap bubble-wrap-self">
+          <div class="bubble bubble-send"><div class="bubble-text">我才到十七章……别剧透</div></div>
+        </div>
+      </div>
+
+      <div class="msg-row">
+        <div class="avatar-static">🌸</div>
+        <div class="bubble-wrap">
+          <div class="bubble bubble-recv"><div class="bubble-text">好好好不说！继续看吧，陆沉这一章太绝了 👇</div></div>
+        </div>
+      </div>
+
+      <div class="timestamp">上午 9:41</div>
+
+      <!-- ── 正文阅读大气泡 ── -->
+      <div class="msg-row" id="reading-row">
+        <div class="avatar" id="avatar" title="长按进入章节目录">🌸</div>
+        <div class="bubble-wrap">
+          <div class="bubble">
+            <div class="bubble-content" id="bubble-content"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="input-bar">
+      <div class="btn-plus" id="btn-boss" title="老板键：立刻隐藏">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V13M1 7H13" stroke="#888" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </div>
+      <div class="input-fake">发送消息</div>
+      <div class="btn-emoji">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9.5" stroke="#888" stroke-width="1.5"/><circle cx="8" cy="9" r="1.2" fill="#888"/><circle cx="14" cy="9" r="1.2" fill="#888"/><path d="M7 13.5C7.8 15 9.3 16 11 16C12.7 16 14.2 15 15 13.5" stroke="#888" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+    <div class="home-ind"><div class="home-bar"></div></div>
+
+    <!-- Flash & Toast -->
+    <div class="flash-overlay" id="flash"></div>
+    <div class="toast" id="toast-reading"></div>
+  </div>
+
+  <!-- ══════════ SCREEN: BOSS KEY ══════════ -->
+  <div class="screen" id="screen-boss">
+    <div class="status-bar">
+      <span class="s-time" id="live-time-boss">9:41</span>
+      <div class="s-icons">
+        <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="5" width="3" height="7" rx="1" fill="#1A1A1A"/><rect x="4.5" y="3" width="3" height="9" rx="1" fill="#1A1A1A"/><rect x="9" y="1" width="3" height="11" rx="1" fill="#1A1A1A"/><rect x="13.5" y="0" width="3" height="12" rx="1" fill="#1A1A1A" opacity="0.3"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 9.5C8.8 9.5 9.5 10.2 9.5 11S8.8 12.5 8 12.5 6.5 11.8 6.5 11 7.2 9.5 8 9.5Z" fill="#1A1A1A"/><path d="M3.8 7.3C4.9 6.2 6.4 5.5 8 5.5S11.1 6.2 12.2 7.3" stroke="#1A1A1A" stroke-width="1.4" fill="none" stroke-linecap="round"/><path d="M1.2 4.7C2.9 3 5.3 2 8 2s5.1 1 6.8 2.7" stroke="#1A1A1A" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+        <svg width="26" height="13" viewBox="0 0 26 13"><rect x="0" y="1.5" width="23" height="10" rx="3" stroke="#1A1A1A" stroke-width="1.2" fill="none"/><rect x="1.5" y="3" width="17" height="7" rx="1.5" fill="#1A1A1A"/><path d="M24 5V8C24.8 7.7 25.5 7 25.5 6.5S24.8 5.3 24 5Z" fill="#1A1A1A"/></svg>
+      </div>
+    </div>
+    <div class="boss-topbar">微信</div>
+    <div class="chat-list-fake">
+      <div class="fake-item">
+        <div class="fake-av av1">👩</div>
+        <div class="fake-info">
+          <div class="fake-name">妈妈</div>
+          <div class="fake-preview">[语音] 12"</div>
+        </div>
+        <div class="fake-meta">
+          <span class="fake-time">9:20</span>
+          <div class="fake-badge">2</div>
+        </div>
+      </div>
+      <div class="fake-item">
+        <div class="fake-av av2">🏢</div>
+        <div class="fake-info">
+          <div class="fake-name">项目组</div>
+          <div class="fake-preview">小王：今天会议推迟到3点</div>
+        </div>
+        <div class="fake-meta">
+          <span class="fake-time">9:15</span>
+        </div>
+      </div>
+      <div class="fake-item">
+        <div class="fake-av av3">🎓</div>
+        <div class="fake-info">
+          <div class="fake-name">大学同学群</div>
+          <div class="fake-preview">李浩：周末聚会记得来</div>
+        </div>
+        <div class="fake-meta">
+          <span class="fake-time">昨天</span>
+        </div>
+      </div>
+    </div>
+    <div class="bottom-tabs">
+      <div class="tab-item on">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 12.5C4 8.1 7.6 4.5 12 4.5C16.4 4.5 20 8.1 20 12.5C20 16.9 16.4 20.5 12 20.5" stroke="#07C160" stroke-width="1.5"/><circle cx="12" cy="12.5" r="2.5" fill="#07C160"/></svg>
+        <span>微信</span>
+      </div>
+      <div class="tab-item">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="#888" stroke-width="1.5"/><path d="M4 20C4 17 7.6 14.5 12 14.5C16.4 14.5 20 17 20 20" stroke="#888" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span>通讯录</span>
+      </div>
+      <div class="tab-item">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="#888" stroke-width="1.5"/><circle cx="12" cy="12" r="2.5" fill="#888"/></svg>
+        <span>发现</span>
+      </div>
+      <div class="tab-item">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="#888" stroke-width="1.5"/><rect x="5" y="14" width="14" height="7" rx="2" stroke="#888" stroke-width="1.5"/></svg>
+        <span>我</span>
+      </div>
+    </div>
+    <div class="home-ind"><div class="home-bar"></div></div>
+    <div class="toast" id="toast-boss">点击任意处返回阅读</div>
+  </div>
+
+  <!-- ══════════ SCREEN: BOOKSHELF ══════════ -->
+  <div class="screen" id="screen-shelf" style="background:#F2F2F7">
+    <div class="status-bar" style="background:#F2F2F7">
+      <span class="s-time">9:41</span>
+      <div class="s-icons">
+        <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="5" width="3" height="7" rx="1" fill="#1A1A1A"/><rect x="4.5" y="3" width="3" height="9" rx="1" fill="#1A1A1A"/><rect x="9" y="1" width="3" height="11" rx="1" fill="#1A1A1A"/></svg>
+        <svg width="26" height="13" viewBox="0 0 26 13"><rect x="0" y="1.5" width="23" height="10" rx="3" stroke="#1A1A1A" stroke-width="1.2" fill="none"/><rect x="1.5" y="3" width="17" height="7" rx="1.5" fill="#1A1A1A"/><path d="M24 5V8C24.8 7.7 25.5 7 25.5 6.5S24.8 5.3 24 5Z" fill="#1A1A1A"/></svg>
+      </div>
+    </div>
+    <div class="nav-bar" style="background:#F2F2F7">
+      <div class="nav-back" id="shelf-back">
+        <svg width="10" height="17" viewBox="0 0 10 17" fill="none"><path d="M9 1L1 8.5L9 16" stroke="#1A7FD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        &nbsp;返回
+      </div>
+      <div class="nav-center"><span class="nav-name">我的书架</span></div>
+    </div>
+    <div class="shelf-area">
+      <div class="shelf-section-title">正在阅读</div>
+      <div class="book-grid">
+        <div class="book-card active-book" data-book="0" id="book-0">
+          <div class="book-cover cover1">
+            📖
+            <div class="book-cover-overlay"></div>
+          </div>
+          <div class="book-info">
+            <div class="book-title">命运之轮</div>
+            <div class="book-author">林雨清 著</div>
+            <div class="book-progress"><div class="book-progress-bar" style="width:42%"></div></div>
+            <div class="book-progress-txt">第17章 · 42%</div>
+          </div>
+        </div>
+        <div class="book-card" data-book="1" id="book-1">
+          <div class="book-cover cover2">
+            🌙
+            <div class="book-cover-overlay"></div>
+          </div>
+          <div class="book-info">
+            <div class="book-title">深夜书店</div>
+            <div class="book-author">苏晚晴 著</div>
+            <div class="book-progress"><div class="book-progress-bar" style="width:8%"></div></div>
+            <div class="book-progress-txt">第2章 · 8%</div>
+          </div>
+        </div>
+      </div>
+      <div class="shelf-section-title">书架</div>
+      <div class="book-grid">
+        <div class="book-card" data-book="2">
+          <div class="book-cover cover3">
+            🌊
+            <div class="book-cover-overlay"></div>
+          </div>
+          <div class="book-info">
+            <div class="book-title">星河漫游</div>
+            <div class="book-author">顾北辰 著</div>
+            <div class="book-progress"><div class="book-progress-bar" style="width:0%"></div></div>
+            <div class="book-progress-txt">未开始</div>
+          </div>
+        </div>
+        <div class="book-card" data-book="3">
+          <div class="book-cover cover4">
+            🌿
+            <div class="book-cover-overlay"></div>
+          </div>
+          <div class="book-info">
+            <div class="book-title">秋日物语</div>
+            <div class="book-author">白鹤鸣 著</div>
+            <div class="book-progress"><div class="book-progress-bar" style="width:100%"></div></div>
+            <div class="book-progress-txt">已读完 ✓</div>
+          </div>
+        </div>
+      </div>
+      <div class="import-btn" id="shelf-import">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 3V13M10 13L6 9M10 13L14 9" stroke="#1A7FD4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 16H17" stroke="#1A7FD4" stroke-width="1.5" stroke-linecap="round"/></svg>
+        导入新书 (TXT)
+      </div>
+    </div>
+    <div class="home-ind"><div class="home-bar"></div></div>
+    <div class="toast" id="toast-shelf"></div>
+  </div>
+
+  <!-- ══════════ SCREEN: CONTACT SETTING ══════════ -->
+  <div class="screen" id="screen-contact" style="background:#F2F2F7">
+    <div class="status-bar" style="background:#F2F2F7">
+      <span class="s-time">9:41</span>
+      <div class="s-icons">
+        <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="5" width="3" height="7" rx="1" fill="#1A1A1A"/><rect x="4.5" y="3" width="3" height="9" rx="1" fill="#1A1A1A"/><rect x="9" y="1" width="3" height="11" rx="1" fill="#1A1A1A"/></svg>
+        <svg width="26" height="13" viewBox="0 0 26 13"><rect x="0" y="1.5" width="23" height="10" rx="3" stroke="#1A1A1A" stroke-width="1.2" fill="none"/><rect x="1.5" y="3" width="17" height="7" rx="1.5" fill="#1A1A1A"/><path d="M24 5V8C24.8 7.7 25.5 7 25.5 6.5S24.8 5.3 24 5Z" fill="#1A1A1A"/></svg>
+      </div>
+    </div>
+    <div class="nav-bar" style="background:#F2F2F7">
+      <div class="nav-back" id="contact-back">
+        <svg width="10" height="17" viewBox="0 0 10 17" fill="none"><path d="M9 1L1 8.5L9 16" stroke="#1A7FD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        &nbsp;返回
+      </div>
+      <div class="nav-center"><span class="nav-name">联系人设置</span></div>
+      <div class="nav-more" style="color:var(--blue);font-size:15px;" id="contact-save">保存</div>
+    </div>
+    <div class="contact-form">
+      <div class="avatar-picker">
+        <div class="avatar-big" id="avatar-picker">
+          <span id="avatar-emoji">🌸</span>
+          <div class="avatar-edit-badge">✎</div>
+        </div>
+      </div>
+      <div class="form-section">
+        <div class="form-row">
+          <span class="form-label">昵称</span>
+          <input
+            id="contact-name-input"
+            style="border:none;outline:none;background:transparent;flex:1;font-size:15px;color:#1A1A1A;text-align:right;"
+            value="小美🌸"
+            maxlength="12"
+          />
+        </div>
+        <div class="form-row">
+          <span class="form-label">头像表情</span>
+          <span class="form-value" id="emoji-select-hint">点击头像更换</span>
+        </div>
+      </div>
+      <div class="form-section">
+        <div class="form-row">
+          <span class="form-label">在线状态</span>
+          <span class="form-value">在线</span>
+          <span class="form-arrow">›</span>
+        </div>
+        <div class="form-row">
+          <span class="form-label">消息时间</span>
+          <span class="form-value">显示实时时间</span>
+          <span class="form-arrow">›</span>
+        </div>
+      </div>
+    </div>
+    <!-- emoji picker -->
+    <div id="emoji-picker" style="display:none;position:absolute;bottom:100px;left:50%;transform:translateX(-50%);background:white;border-radius:16px;padding:16px;box-shadow:0 8px 40px rgba(0,0,0,0.2);z-index:300;width:320px;">
+      <div style="font-size:12px;color:#888;margin-bottom:12px;text-align:center;letter-spacing:1px;">选择头像</div>
+      <div id="emoji-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;"></div>
+    </div>
+    <div class="home-ind"><div class="home-bar"></div></div>
+    <div class="toast" id="toast-contact"></div>
+  </div>
+
+
+  <!-- ══════════ SCREEN: CHAPTER DIRECTORY (full screen, PRD §2.3) ══════════ -->
+  <div class="screen" id="screen-chapter" style="background:#fff;">
+    <div class="status-bar" style="background:var(--nav);">
+      <span class="s-time">9:41</span>
+      <div class="s-icons">
+        <svg width="17" height="12" viewBox="0 0 17 12"><rect x="0" y="5" width="3" height="7" rx="1" fill="#1A1A1A"/><rect x="4.5" y="3" width="3" height="9" rx="1" fill="#1A1A1A"/><rect x="9" y="1" width="3" height="11" rx="1" fill="#1A1A1A"/></svg>
+        <svg width="26" height="13" viewBox="0 0 26 13"><rect x="0" y="1.5" width="23" height="10" rx="3" stroke="#1A1A1A" stroke-width="1.2" fill="none"/><rect x="1.5" y="3" width="17" height="7" rx="1.5" fill="#1A1A1A"/><path d="M24 5V8C24.8 7.7 25.5 7 25.5 6.5S24.8 5.3 24 5Z" fill="#1A1A1A"/></svg>
+      </div>
+    </div>
+    <div class="nav-bar">
+      <div class="nav-back" id="chapter-back">
+        <svg width="10" height="17" viewBox="0 0 10 17" fill="none"><path d="M9 1L1 8.5L9 16" stroke="#1A7FD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        &nbsp;返回
+      </div>
+      <div class="nav-center"><span class="nav-name">目录</span></div>
+    </div>
+    <!-- Search bar -->
+    <div class="ch-search" style="margin:10px 16px 0; height:34px; background:#F2F2F7; border-radius:10px; display:flex; align-items:center; padding:0 12px; gap:8px; flex-shrink:0;">
+      <span style="color:#B0B0B0;font-size:14px;">🔍</span>
+      <input id="ch-search-input" type="text" placeholder="搜索章节…" style="flex:1;border:none;outline:none;background:transparent;font-size:14px;color:#1A1A1A;" />
+    </div>
+    <!-- Summary -->
+    <div id="ch-summary" style="padding:8px 20px 6px;font-size:11px;color:#C0C0C0;letter-spacing:0.3px;flex-shrink:0;border-bottom:0.5px solid #F2F2F2;"></div>
+    <!-- List -->
+    <div class="ch-list" id="ch-list"></div>
+    <div class="home-ind"><div class="home-bar"></div></div>
+  </div>
+
+</div><!-- /phone -->
+</div><!-- /shell -->
+
+<script>
+// ─── Data ───
+const EMOJIS = ['🌸','🌺','🌹','🌷','🌻','🌼','🦋','🐱','🐶','🐼','🦊','🐨','🐯','🦁','🐮','🐸','🐙','🦄','🌈','⭐','🎀','💎'];
+
+const CHAPTERS = [
+  {title:'第一章　相遇',status:'read'},
+  {title:'第二章　误解',status:'read'},
+  {title:'第三章　心动',status:'read'},
+  {title:'第四章　秘密',status:'read'},
+  {title:'第五章　距离',status:'read'},
+  {title:'第六章　风波',status:'read'},
+  {title:'第七章　误会',status:'read'},
+  {title:'第八章　靠近',status:'read'},
+  {title:'第九章　表白',status:'read'},
+  {title:'第十章　开始',status:'read'},
+  {title:'第十一章　磨合',status:'read'},
+  {title:'第十二章　争吵',status:'read'},
+  {title:'第十三章　和好',status:'read'},
+  {title:'第十四章　变故',status:'read'},
+  {title:'第十五章　选择',status:'read'},
+  {title:'第十六章　告别',status:'read'},
+  {title:'第十七章　命运之轮',status:'current'},
+  {title:'第十八章　归途',status:'unread'},
+  {title:'第十九章　重逢',status:'unread'},
+  {title:'第二十章　终章',status:'unread'},
+];
+
+const NOVEL_TEXT = `<p class="ch-title">第十七章　命运之轮</p>
+<p>夜风卷着落叶，从城市的高处吹来，带着一丝若有若无的凉意。陆沉站在天台边缘，望着脚下灯火通明的都市，心中涌起一股难以言说的情绪。</p>
+<p>三年了。整整三年，他把所有的时间都押注在这家公司上，把所有的热血都燃烧在那些无休止的加班夜里。可现在，一切都在顷刻间坍塌。</p>
+<p>手机震了一下。他低头看，是林雨柔发来的消息：「你现在在哪儿？我买了你最喜欢的糖葫芦。」</p>
+<p>他盯着那句话看了很久，不知道为什么，眼眶开始酸涩。这个傻姑娘，永远在最恰当的时候出现在最不恰当的地方。</p>
+<p>「屋顶。」他回了两个字。</p>
+<p>「等我。」</p>
+<p>七分钟后，楼梯间的铁门发出吱呀一声响。林雨柔穿着她那件洗得有些发白的格子外套，手里举着两根糖葫芦，呼出的白雾在夜色里散开，像是童话里才有的场景。</p>
+<p>「你怎么知道我在这儿？」</p>
+<p>「猜的。」她走过来，把其中一根递给他，「每次你难过的时候都来这儿吹风，以为我不知道吗？」</p>
+<p>陆沉看着那颗红彤彤的山楂，突然觉得胸腔里有什么东西松动了。他没有接，而是转过身，背靠着栏杆，看向天际那道稀薄的云。</p>
+<p>「项目黄了。」他说，声音平静得像在播报天气，「投资人撤了，团队散了，什么都没了。」</p>
+<p>林雨柔没有说对不起，也没有说没关系，只是在他旁边坐下来，把另一根糖葫芦咬了一口，慢慢嚼着。</p>
+<p>「那你下一步想怎么办？」她问。</p>
+<p>这个问题问得陆沉愣了一下。所有人听到这个消息，第一反应都是安慰，都是惋惜，都是「你已经很努力了」、「一定有原因的」——只有她，直接问他接下来要怎么办。</p>
+<p>「不知道。」他诚实地说。</p>
+<p>「那就先把糖葫芦吃了。」林雨柔把那根递给他，「吃完了再想。」</p>
+<p>陆沉终于笑了，笑得有些苦，却也有些真实。他接过糖葫芦，轻轻咬了一口，那股酸甜的滋味在舌尖散开，像极了这三年的起起落落。</p>
+<p>「你真傻。」他说。</p>
+<p>「我知道。」她轻声应道，「但傻人有傻福嘛。」</p>
+<p>两个人就这样坐在天台上，看着城市的灯火一盏一盏地亮起来，谁也没有再说话。夜风依旧在吹，但不知从什么时候起，已经不再那么冷了。</p>`;
+
+const CH17_TEXT = NOVEL_TEXT;
+const CH18_TEXT = `<p class="ch-title">第十八章　归途</p>
+<p>第二天清晨，陆沉醒来时，窗外已经透进来一缕淡淡的阳光。他静静地躺着，听着城市从睡梦中苏醒的声音，心里那块压着的石头，似乎轻了一些。</p>
+<p>手机上有一条未读消息，是林雨柔昨晚发来的：「到家啦。糖葫芦好吃吗？」后面跟着一个傻乎乎的笑脸表情。</p>
+<p>他盯着这条消息看了好久，然后慢慢地打出三个字：「好吃的。」</p>
+<p>发出去之后，他放下手机，望着天花板。也许，一切还没到最坏的时候。也许，还有什么值得期待的事情正在前方等着他。</p>
+<p>窗外，一辆公车缓缓驶过，带起一阵轻轻的风。</p>`;
+
+const CH16_TEXT = `<p class="ch-title">第十六章　告别</p>
+<p>那是一个难得的晴天。陆沉站在机场出发厅，背着一个并不重的行囊，却感觉有什么东西压得他喘不过气来。</p>
+<p>林雨柔没有来送行。她发了一条消息：「路上注意安全。」就再没有下文。</p>
+<p>登机口的广播一遍一遍地播报着航班信息。陆沉拿出登机牌，看了看，又收了回去。检票口越来越近了。</p>
+<p>他打开手机，翻到林雨柔的头像，想发一条消息，却不知道该说什么。最后，他只是把手机放了回去，跟着人流，一步一步地走向登机口。</p>`;
+
+let currentChapter = 16; // 0-indexed
+let currentFontSize = 16;
+let contactName = '小美🌸';
+let contactEmoji = '🌸';
+let currentScreen = 'reading';
+let bossKeyReturnsTo = 'reading';
+
+const chapterTexts = {};
+CHAPTERS.forEach((ch, i) => {
+  if (i === 16) chapterTexts[i] = CH17_TEXT;
+  else if (i === 17) chapterTexts[i] = CH18_TEXT;
+  else if (i === 15) chapterTexts[i] = CH16_TEXT;
+  else chapterTexts[i] = `<p class="ch-title">${ch.title}</p><p>（此章节内容加载中……）</p>`;
+});
+
+// ─── Screen Nav ───
+function goTo(id, direction='forward') {
+  const screens = document.querySelectorAll('.screen');
+  screens.forEach(s => {
+    if (s.id === 'screen-' + id) {
+      s.classList.remove('exit-left','exit-right');
+      s.classList.add('active');
+    } else if (s.classList.contains('active')) {
+      s.classList.remove('active');
+      s.classList.add(direction === 'forward' ? 'exit-left' : 'exit-right');
+      setTimeout(() => s.classList.remove('exit-left','exit-right'), 300);
+    }
+  });
+  currentScreen = id;
+  updateFlowDots();
+}
+
+function updateFlowDots() {
+  document.querySelectorAll('.flow-dot').forEach(d => {
+    d.classList.toggle('active', d.dataset.screen === currentScreen);
+  });
+}
+
+// ─── Init ───
+function initBubble() {
+  const bc = document.getElementById('bubble-content');
+  bc.innerHTML = chapterTexts[currentChapter];
+  bc.style.fontSize = currentFontSize + 'px';
+  bc.scrollTop = 0;
+}
+
+function initChapterList(filter = '') {
+  const list = document.getElementById('ch-list');
+  const summary = document.getElementById('ch-summary');
+  const readCount = CHAPTERS.filter(c => c.status === 'read').length;
+  summary.textContent = `共 ${CHAPTERS.length} 章 · 已读 ${readCount} 章 · 当前第 ${currentChapter + 1} 章`;
+
+  const filtered = CHAPTERS.map((ch, i) => ({...ch, i}))
+    .filter(ch => !filter || ch.title.includes(filter));
+
+  list.innerHTML = '';
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="ch-empty" style="padding:40px 20px;text-align:center;color:#C8C8C8;font-size:14px;">没有找到"${filter}"</div>`;
+    return;
+  }
+
+  filtered.forEach(({title, status, i}) => {
+    const isCur = i === currentChapter;
+    const isRead = status === 'read';
+    // PRD §2.3: 当前章节蓝色+蓝点，已读灰色+灰色勾，未读黑色字体
+    const statusMark = isCur ? '🔵' : isRead ? '✓' : '';
+    const statusColor = isCur ? 'var(--blue)' : '#BBBBBB';
+
+    const div = document.createElement('div');
+    div.className = 'ch-item' + (isCur ? ' cur' : '') + (isRead ? ' read' : '');
+    div.innerHTML = `
+      <div style="flex:1;min-width:0;padding:16px 0;">
+        <div class="ch-name">${title}</div>
+      </div>
+      <span style="font-size:12px;color:${statusColor};margin-left:12px;flex-shrink:0;">${statusMark}</span>
+    `;
+    div.addEventListener('click', () => jumpToChapter(i));
+    list.appendChild(div);
+  });
+
+  // PRD: auto-scroll current chapter to screen center
+  setTimeout(() => {
+    const cur = list.querySelector('.ch-item.cur');
+    if (cur) cur.scrollIntoView({block: 'center', behavior: 'smooth'});
+  }, 120);
+}
+
+function jumpToChapter(idx) {
+  currentChapter = idx;
+  // PRD: 目录页退出，阅读界面定位到该章节首行，< 0.2s
+  goTo('reading', 'back');
+  setTimeout(() => {
+    const bc = document.getElementById('bubble-content');
+    bc.innerHTML = chapterTexts[idx] || `<p class="ch-title">${CHAPTERS[idx].title}</p><p>此章节内容暂无。</p>`;
+    bc.style.fontSize = currentFontSize + 'px';
+    bc.scrollTop = 0;
+    // scroll chat to reading bubble
+    const row = document.getElementById('reading-row');
+    if (row) row.scrollIntoView({block:'start'});
+    showToast('toast-reading', `已跳转：${CHAPTERS[idx].title}`);
+    initChapterList();
+  }, 200);
+}
+
+// ─── Menu ───
+const ctxMenu = document.getElementById('ctx-menu');
+const dimReading = document.getElementById('dim-reading');
+let menuOpen = false;
+
+function openMenu() {
+  menuOpen = true;
+  ctxMenu.classList.add('open');
+  dimReading.classList.add('show');
+}
+function closeMenu() {
+  menuOpen = false;
+  ctxMenu.classList.remove('open');
+  if (!chPanelOpen && !fontSheetOpen) dimReading.classList.remove('show');
+}
+
+document.getElementById('btn-menu').addEventListener('click', (e) => {
+  e.stopPropagation();
+  menuOpen ? closeMenu() : openMenu();
+});
+
+document.getElementById('menu-shelf').addEventListener('click', () => {
+  closeMenu();
+  setTimeout(() => goTo('shelf'), 100);
+});
+document.getElementById('menu-contact').addEventListener('click', () => {
+  closeMenu();
+  setTimeout(() => goTo('contact'), 100);
+});
+document.getElementById('menu-selfavatar').addEventListener('click', () => {
+  closeMenu();
+  showToast('toast-reading', '😊 自己头像设置（联系人设置页右侧头像）', 2500);
+  setTimeout(() => goTo('contact'), 600);
+});
+document.getElementById('menu-chatcustom').addEventListener('click', () => {
+  closeMenu();
+  showToast('toast-reading', '💬 聊天内容自定义 — MVP阶段可编辑默认对话', 2500);
+});
+document.getElementById('menu-mode').addEventListener('click', () => {
+  closeMenu();
+  showToast('toast-reading', '🧭 已切换到「气泡阅读模式」', 1800);
+});
+document.getElementById('menu-import').addEventListener('click', () => {
+  closeMenu();
+  simulateImportFlow('toast-reading');
+});
+document.getElementById('menu-font').addEventListener('click', () => {
+  closeMenu();
+  setTimeout(openFontSheet, 50);
+});
+
+// Close menu on dim click
+dimReading.addEventListener('click', () => {
+  closeMenu();
+  closeFontSheet();
+});
+
+// ─── Chapter Screen (full-screen, PRD §2.3) ───
+let chPanelOpen = false; // kept for compat
+
+function openChapterPanel() {
+  chPanelOpen = true;
+  document.getElementById('ch-search-input').value = '';
+  initChapterList();
+  // Full-screen push from right, < 0.3s
+  goTo('chapter', 'forward');
+}
+
+function closeChapterPanel() {
+  chPanelOpen = false;
+  goTo('reading', 'back');
+}
+
+document.getElementById('ch-search-input').addEventListener('input', (e) => {
+  initChapterList(e.target.value.trim());
+});
+
+document.getElementById('chapter-back').addEventListener('click', () => {
+  goTo('reading', 'back');
+});
+
+// PRD §2.3: 点空白区域返回（不跳转章节）
+document.getElementById('screen-chapter').addEventListener('click', (e) => {
+  const t = e.target;
+  const block = t.closest('.ch-item, .nav-bar, .status-bar, .ch-search, #ch-summary');
+  if (!block) closeChapterPanel();
+});
+
+// PRD §2.3: 从左边缘右滑返回
+const chapterScreen = document.getElementById('screen-chapter');
+let chapterEdgeStartX = -1;
+let chapterEdgeStartY = -1;
+
+chapterScreen.addEventListener('touchstart', (e) => {
+  if (!e.touches || !e.touches[0]) return;
+  const touch = e.touches[0];
+  chapterEdgeStartX = touch.clientX <= 24 ? touch.clientX : -1;
+  chapterEdgeStartY = touch.clientY;
+}, { passive: true });
+
+chapterScreen.addEventListener('touchend', (e) => {
+  if (chapterEdgeStartX < 0 || !e.changedTouches || !e.changedTouches[0]) return;
+  const touch = e.changedTouches[0];
+  const deltaX = touch.clientX - chapterEdgeStartX;
+  const deltaY = Math.abs(touch.clientY - chapterEdgeStartY);
+  if (deltaX > 70 && deltaY < 45) closeChapterPanel();
+  chapterEdgeStartX = -1;
+  chapterEdgeStartY = -1;
+}, { passive: true });
+
+// Long press avatar
+let lpTimer = null;
+let lpProgress = 0;
+const avatar = document.getElementById('avatar');
+const lpRing = document.getElementById('lp-ring');
+const lpCircle = lpRing.querySelector('circle');
+
+function startLongPress() {
+  // position ring over actual avatar
+  const av = document.getElementById('avatar');
+  const phone = document.querySelector('.phone');
+  const avRect = av.getBoundingClientRect();
+  const phoneRect = phone.getBoundingClientRect();
+  lpRing.style.top = (avRect.top - phoneRect.top) + 'px';
+  lpRing.style.left = (avRect.left - phoneRect.left) + 'px';
+
+  lpRing.classList.add('filling');
+  lpTimer = setTimeout(() => {
+    endLongPress();
+    openChapterPanel();
+  }, 550);
+}
+function endLongPress() {
+  clearTimeout(lpTimer);
+  lpTimer = null;
+  setTimeout(() => lpRing.classList.remove('filling'), 200);
+}
+
+avatar.addEventListener('mousedown', startLongPress);
+avatar.addEventListener('touchstart', (e) => { e.preventDefault(); startLongPress(); }, {passive:false});
+avatar.addEventListener('mouseup', endLongPress);
+avatar.addEventListener('mouseleave', endLongPress);
+avatar.addEventListener('touchend', endLongPress);
+
+// ─── Font Sheet ───
+const fontSheet = document.getElementById('font-sheet');
+let fontSheetOpen = false;
+
+function openFontSheet() {
+  fontSheetOpen = true;
+  fontSheet.classList.add('open');
+  dimReading.classList.add('show');
+}
+function closeFontSheet() {
+  fontSheetOpen = false;
+  fontSheet.classList.remove('open');
+  if (!menuOpen && !chPanelOpen) dimReading.classList.remove('show');
+}
+
+document.getElementById('font-sheet-close').addEventListener('click', closeFontSheet);
+
+document.querySelectorAll('.font-opt').forEach(opt => {
+  opt.addEventListener('click', () => {
+    document.querySelectorAll('.font-opt').forEach(o => o.classList.remove('sel'));
+    opt.classList.add('sel');
+    currentFontSize = parseInt(opt.dataset.size);
+    document.getElementById('bubble-content').style.fontSize = currentFontSize + 'px';
+    showToast('toast-reading', `字体已调整：${opt.textContent}`);
+    setTimeout(closeFontSheet, 600);
+  });
+});
+
+// ─── Boss Key ───
+const flash = document.getElementById('flash');
+
+document.getElementById('btn-boss').addEventListener('click', () => {
+  bossKeyReturnsTo = currentScreen;
+  flash.classList.add('flash');
+  setTimeout(() => {
+    flash.classList.remove('flash');
+    goTo('boss', 'forward');
+    const t = document.getElementById('toast-boss');
+    t.textContent = '点击任意处返回阅读';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  }, 80);
+});
+
+document.getElementById('screen-boss').addEventListener('click', () => {
+  goTo('reading', 'back');
+});
+
+// Shake detection
+let lastX = 0, lastY = 0, lastZ = 0, lastShake = 0;
+if (window.DeviceMotionEvent) {
+  window.addEventListener('devicemotion', (e) => {
+    const a = e.accelerationIncludingGravity;
+    if (!a) return;
+    const now = Date.now();
+    if (now - lastShake < 1000) return;
+    const dx = Math.abs(a.x - lastX), dy = Math.abs(a.y - lastY), dz = Math.abs(a.z - lastZ);
+    if (dx + dy + dz > 30 && currentScreen === 'reading') {
+      lastShake = now;
+      document.getElementById('btn-boss').click();
+    }
+    lastX = a.x; lastY = a.y; lastZ = a.z;
+  });
+}
+
+// ─── Bookshelf ───
+document.getElementById('shelf-back').addEventListener('click', () => goTo('reading', 'back'));
+document.querySelectorAll('.book-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const idx = card.dataset.book;
+    if (idx === undefined) return;
+    document.querySelectorAll('.book-card').forEach(c => c.classList.remove('active-book'));
+    card.classList.add('active-book');
+    showToast('toast-shelf', `已切换：${card.querySelector('.book-title').textContent}`);
+    setTimeout(() => goTo('reading', 'back'), 800);
+  });
+});
+document.getElementById('shelf-import').addEventListener('click', () => {
+  simulateImportFlow('toast-shelf');
+});
+
+// ─── Contact ───
+document.getElementById('contact-back').addEventListener('click', () => goTo('reading', 'back'));
+
+let selfEmoji = '😊';
+
+document.getElementById('contact-save').addEventListener('click', () => {
+  const name = document.getElementById('contact-name-input').value.trim() || '小美';
+  contactName = name;
+  contactEmoji = document.getElementById('avatar-emoji').textContent;
+  document.getElementById('contact-name-display').textContent = contactName;
+  document.getElementById('avatar').textContent = contactEmoji;
+  // sync all other-party avatars
+  document.querySelectorAll('.avatar-static').forEach(a => a.textContent = contactEmoji);
+  showToast('toast-contact', '✓ 设置已保存');
+  setTimeout(() => goTo('reading', 'back'), 700);
+});
+
+// Emoji picker
+const emojiGrid = document.getElementById('emoji-grid');
+const emojiPicker = document.getElementById('emoji-picker');
+EMOJIS.forEach(e => {
+  const btn = document.createElement('div');
+  btn.textContent = e;
+  btn.style.cssText = 'font-size:26px;text-align:center;cursor:pointer;padding:6px;border-radius:8px;transition:background 0.12s;';
+  btn.addEventListener('click', () => {
+    document.getElementById('avatar-emoji').textContent = e;
+    document.getElementById('avatar-big').style.background = '';
+    emojiPicker.style.display = 'none';
+  });
+  btn.addEventListener('mouseover', () => btn.style.background = '#F5F5F5');
+  btn.addEventListener('mouseout', () => btn.style.background = '');
+  emojiGrid.appendChild(btn);
+});
+document.getElementById('avatar-picker').addEventListener('click', () => {
+  emojiPicker.style.display = emojiPicker.style.display === 'none' ? 'block' : 'none';
+});
+
+// ─── Flow dots ───
+document.querySelectorAll('.flow-dot').forEach(d => {
+  d.addEventListener('click', () => {
+    const target = d.dataset.screen;
+    if (target !== currentScreen) goTo(target, 'forward');
+  });
+});
+
+// ─── Toast ───
+function showToast(id, msg, dur = 2000) {
+  const t = document.getElementById(id);
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+// ─── Import Flow (PRD 首次导入流程演示) ───
+function simulateImportFlow(toastId) {
+  const steps = [
+    '📄 文件选择器已打开',
+    '⏳ 正在导入 TXT（自动识别 UTF-8 / GBK）…',
+    '🧩 正在解析章节目录…',
+    '✅ 导入完成，已恢复到阅读页'
+  ];
+  let i = 0;
+  const run = () => {
+    showToast(toastId, steps[i], i === steps.length - 1 ? 1800 : 1100);
+    if (i < steps.length - 1) {
+      i += 1;
+      setTimeout(run, 850);
+    }
+  };
+  run();
+}
+
+// ─── Live Time ───
+function updateTime() {
+  const now = new Date();
+  const h = now.getHours(), m = now.getMinutes();
+  const str = `${h}:${String(m).padStart(2,'0')}`;
+  document.querySelectorAll('#live-time, #live-time-boss').forEach(el => el && (el.textContent = str));
+}
+updateTime();
+setInterval(updateTime, 10000);
+
+// ─── Init ───
+initBubble();
+initChapterList();
+updateFlowDots();
+
+// Scroll chat to reading bubble
+setTimeout(() => {
+  const row = document.getElementById('reading-row');
+  if (row) row.scrollIntoView({behavior:'smooth', block:'start'});
+}, 400);
+
+// Welcome toast
+setTimeout(() => showToast('toast-reading', '💡 点「+」老板键｜长按头像看目录', 3000), 800);
+</script>
+</body>
+</html>
