@@ -31,8 +31,9 @@ class LocalBookStorage {
   }
 
   Future<ImportedTextBook?> loadLatestBook() async {
+    SharedPreferences? prefs;
     try {
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      prefs = await SharedPreferences.getInstance();
       final String? raw = prefs.getString(_latestBookKey);
       if (raw == null || raw.trim().isEmpty) {
         return null;
@@ -57,6 +58,11 @@ class LocalBookStorage {
     } on MissingPluginException {
       return null;
     } on PlatformException {
+      return null;
+    } catch (_) {
+      if (prefs != null) {
+        await prefs.remove(_latestBookKey);
+      }
       return null;
     }
   }

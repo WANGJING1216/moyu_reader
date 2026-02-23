@@ -1,41 +1,85 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/router.dart';
 import '../../../../shared/services/local_book_storage.dart';
+import '../../../../shared/services/reading_progress_storage.dart';
+import '../../../catalog/presentation/pages/catalog_page.dart';
 import '../../../import_book/domain/entities/imported_text_book.dart';
 import '../../application/reader_fake_data.dart';
+import '../../application/reader_progress_session_store.dart';
 import '../../domain/entities/fake_chat_message.dart';
+import '../../domain/entities/reading_progress.dart';
 
 class ReaderPage extends StatefulWidget {
-  const ReaderPage({super.key});
+  const ReaderPage({
+    super.key,
+    this.initialBook,
+    this.avatarLongPressDuration = const Duration(milliseconds: 500),
+  });
+
+  final ImportedTextBook? initialBook;
+  final Duration avatarLongPressDuration;
 
   @override
   State<ReaderPage> createState() => _ReaderPageState();
 }
 
-class _ReaderPageState extends State<ReaderPage> {
+class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
   final ScrollController _outerScrollController = ScrollController();
   final ScrollController _innerScrollController = ScrollController();
   final LocalBookStorage _localBookStorage = const LocalBookStorage();
+  final ReadingProgressStorage _readingProgressStorage =
+      const ReadingProgressStorage();
+  final ReaderProgressSessionStore _sessionStore = ReaderProgressSessionStore();
+  Timer? _saveDebounceTimer;
+  int _restoreToken = 0;
 
+  ImportedTextBook? _currentBook;
+  String? _currentBookId;
   late String _novelContent;
+  int _currentChapterIndex = 0;
+  Set<int> _readChapterIndexes = <int>{0};
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _innerScrollController.addListener(_onProgressRelatedScroll);
+    _outerScrollController.addListener(_onProgressRelatedScroll);
+
     _novelContent = List<String>.filled(
       6,
       ReaderFakeData.novelParagraph,
     ).join('\n\n');
-    _restoreLatestBook();
+
+    if (widget.initialBook != null) {
+      _applyImportedBook(widget.initialBook!);
+    } else {
+      _restoreLatestBook();
+    }
   }
 
   @override
   void dispose() {
+    _saveReadingProgress();
+    WidgetsBinding.instance.removeObserver(this);
+    _saveDebounceTimer?.cancel();
+    _innerScrollController.removeListener(_onProgressRelatedScroll);
+    _outerScrollController.removeListener(_onProgressRelatedScroll);
     _outerScrollController.dispose();
     _innerScrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      _saveReadingProgress();
+    }
   }
 
   @override
@@ -142,7 +186,7 @@ class _ReaderPageState extends State<ReaderPage> {
           mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            _buildAvatar(ReaderFakeData.readingAvatar, true),
+            _buildCatalogAvatar(),
             const SizedBox(width: 8),
             SizedBox(
               width: bubbleWidth,
@@ -342,6 +386,26 @@ class _ReaderPageState extends State<ReaderPage> {
     );
   }
 
+  Widget _buildCatalogAvatar() {
+    return RawGestureDetector(
+      gestures: <Type, GestureRecognizerFactory>{
+        LongPressGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+              () => LongPressGestureRecognizer(
+                duration: widget.avatarLongPressDuration,
+              ),
+              (LongPressGestureRecognizer instance) {
+                instance.onLongPress = _openCatalog;
+              },
+            ),
+      },
+      child: Container(
+        key: const Key('reader_catalog_avatar'),
+        child: _buildAvatar(ReaderFakeData.readingAvatar, true),
+      ),
+    );
+  }
+
   Future<void> _onMenuSelected(_ReaderMenuAction action) async {
     switch (action) {
       case _ReaderMenuAction.bookshelf:
@@ -354,19 +418,8 @@ class _ReaderPageState extends State<ReaderPage> {
         if (!mounted || imported == null) {
           return;
         }
-        setState(() {
-          _novelContent = imported.content;
-        });
-        if (_innerScrollController.hasClients) {
-          _innerScrollController.jumpTo(
-            _innerScrollController.position.minScrollExtent,
-          );
-        }
-        if (_outerScrollController.hasClients) {
-          _outerScrollController.jumpTo(
-            _outerScrollController.position.minScrollExtent,
-          );
-        }
+        _applyImportedBook(imported);
+        _jumpBubbleToTop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -378,16 +431,252 @@ class _ReaderPageState extends State<ReaderPage> {
     }
   }
 
+  void _applyImportedBook(ImportedTextBook book) {
+    _currentBook = book;
+    _currentBookId = _buildBookId(book);
+
+    final ReaderProgressSession session = _sessionStore.resolve(
+      bookId: _currentBookId!,
+      chapterCount: book.chapters.length,
+    );
+    _currentChapterIndex = session.currentChapterIndex;
+    _readChapterIndexes = session.readChapterIndexes;
+
+    if (book.chapters.isEmpty) {
+      _novelContent = book.content;
+      setState(() {});
+      return;
+    }
+
+    _currentChapterIndex = _currentChapterIndex.clamp(
+      0,
+      book.chapters.length - 1,
+    );
+    _novelContent = _chapterText(book, _currentChapterIndex);
+    setState(() {});
+
+    _restoreProgressForCurrentBook(book);
+  }
+
   Future<void> _restoreLatestBook() async {
     final ImportedTextBook? localBook = await _localBookStorage
         .loadLatestBook();
     if (!mounted || localBook == null) {
       return;
     }
+    _applyImportedBook(localBook);
+  }
+
+  Future<void> _openCatalog() async {
+    final ImportedTextBook? book = _currentBook;
+    if (book == null || book.chapters.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('暂无章节数据')));
+      return;
+    }
+
+    final int? selectedIndex = await Navigator.of(context).pushNamed<int>(
+      AppRoutes.catalog,
+      arguments: CatalogPageArgs(
+        bookId: _currentBookId ?? _buildBookId(book),
+        chapters: book.chapters,
+        currentChapterIndex: _currentChapterIndex,
+        readChapterIndexes: _readChapterIndexes,
+        openedAt: DateTime.now(),
+      ),
+    );
+
+    if (!mounted ||
+        selectedIndex == null ||
+        selectedIndex < 0 ||
+        selectedIndex >= book.chapters.length) {
+      return;
+    }
 
     setState(() {
-      _novelContent = localBook.content;
+      _currentChapterIndex = selectedIndex;
+      _readChapterIndexes = <int>{
+        ..._readChapterIndexes,
+        for (int i = 0; i <= selectedIndex; i++) i,
+      };
+      _novelContent = _chapterText(book, selectedIndex);
     });
+    _syncCurrentBookSession(chapterCount: book.chapters.length);
+
+    _jumpBubbleToTop();
+    _saveReadingProgress();
+  }
+
+  String _buildBookId(ImportedTextBook book) {
+    final String? sourcePath = book.sourcePath;
+    if (sourcePath != null && sourcePath.trim().isNotEmpty) {
+      return sourcePath;
+    }
+    // Stable fallback id: include title + length + chapter count + deterministic fingerprint.
+    // This avoids collisions that would happen with only `title|encoding`.
+    final int sampleLength = book.content.length < 512
+        ? book.content.length
+        : 512;
+    final String head = book.content.substring(0, sampleLength);
+    final String tail = book.content.substring(
+      book.content.length - sampleLength,
+    );
+    final String fingerprint = _stableFingerprint(
+      '${book.title}|${book.content.length}|${book.chapters.length}|$head|$tail',
+    );
+    return 'fallback:$fingerprint';
+  }
+
+  void _syncCurrentBookSession({required int chapterCount}) {
+    final String? bookId = _currentBookId;
+    if (bookId == null) {
+      return;
+    }
+    _sessionStore.update(
+      bookId: bookId,
+      chapterCount: chapterCount,
+      currentChapterIndex: _currentChapterIndex,
+      readChapterIndexes: _readChapterIndexes,
+    );
+  }
+
+  Future<void> _restoreProgressForCurrentBook(ImportedTextBook book) async {
+    final String? bookId = _currentBookId;
+    if (bookId == null || book.chapters.isEmpty) {
+      return;
+    }
+
+    final int token = ++_restoreToken;
+    final ReadingProgress? stored = await _readingProgressStorage.loadProgress(
+      bookId,
+    );
+    if (!mounted || token != _restoreToken || _currentBookId != bookId) {
+      return;
+    }
+    if (stored == null) {
+      return;
+    }
+
+    final int restoredChapter = stored.chapterIndex.clamp(
+      0,
+      book.chapters.length - 1,
+    );
+    final Set<int> restoredRead = <int>{
+      ..._readChapterIndexes,
+      ...stored.readChapterIndexes,
+      for (int i = 0; i <= restoredChapter; i++) i,
+    };
+
+    setState(() {
+      _currentChapterIndex = restoredChapter;
+      _readChapterIndexes = restoredRead;
+      _novelContent = _chapterText(book, restoredChapter);
+    });
+    _syncCurrentBookSession(chapterCount: book.chapters.length);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _jumpToOffsets(
+        innerOffset: stored.innerOffset,
+        outerOffset: stored.outerOffset,
+      );
+    });
+  }
+
+  void _onProgressRelatedScroll() {
+    _saveDebounceTimer?.cancel();
+    _saveDebounceTimer = Timer(const Duration(milliseconds: 800), () {
+      _saveReadingProgress();
+    });
+  }
+
+  void _saveReadingProgress() {
+    final ImportedTextBook? book = _currentBook;
+    final String? bookId = _currentBookId;
+    if (book == null || bookId == null || book.chapters.isEmpty) {
+      return;
+    }
+
+    final ReadingProgress progress = ReadingProgress(
+      bookId: bookId,
+      chapterIndex: _currentChapterIndex,
+      innerOffset: _innerScrollController.hasClients
+          ? _innerScrollController.position.pixels
+          : 0,
+      outerOffset: _outerScrollController.hasClients
+          ? _outerScrollController.position.pixels
+          : 0,
+      updatedAt: DateTime.now(),
+      readChapterIndexes: _readChapterIndexes,
+    );
+
+    _readingProgressStorage.saveProgress(progress);
+    _syncCurrentBookSession(chapterCount: book.chapters.length);
+  }
+
+  void _jumpToOffsets({
+    required double innerOffset,
+    required double outerOffset,
+  }) {
+    if (_innerScrollController.hasClients) {
+      final ScrollPosition position = _innerScrollController.position;
+      final double clamped = innerOffset.clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      _innerScrollController.jumpTo(clamped);
+    }
+
+    if (_outerScrollController.hasClients) {
+      final ScrollPosition position = _outerScrollController.position;
+      final double clamped = outerOffset.clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      _outerScrollController.jumpTo(clamped);
+    }
+  }
+
+  String _stableFingerprint(String input) {
+    int hash = 2166136261;
+    for (final int codeUnit in input.codeUnits) {
+      hash ^= codeUnit;
+      hash = (hash * 16777619) & 0xFFFFFFFF;
+    }
+    return hash.toRadixString(16).padLeft(8, '0');
+  }
+
+  String _chapterText(ImportedTextBook book, int index) {
+    if (book.chapters.isEmpty) {
+      return book.content;
+    }
+
+    final int safeIndex = index.clamp(0, book.chapters.length - 1);
+    final int start = book.chapters[safeIndex].startOffset.clamp(
+      0,
+      book.content.length,
+    );
+    final int end = book.chapters[safeIndex].endOffset.clamp(
+      start,
+      book.content.length,
+    );
+    return book.content.substring(start, end).trim();
+  }
+
+  void _jumpBubbleToTop() {
+    if (_innerScrollController.hasClients) {
+      _innerScrollController.jumpTo(
+        _innerScrollController.position.minScrollExtent,
+      );
+    }
+    if (_outerScrollController.hasClients) {
+      _outerScrollController.jumpTo(
+        _outerScrollController.position.minScrollExtent,
+      );
+    }
   }
 
   void _scrollBubbleWithBoundaryTransfer(double scrollDelta) {

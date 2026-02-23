@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
+FLUTTER_BIN="${FLUTTER_BIN:-/Users/wangjing/tools/flutter-sdk/bin/flutter}"
+if ! command -v "$FLUTTER_BIN" >/dev/null 2>&1; then
+  if command -v flutter >/dev/null 2>&1; then
+    FLUTTER_BIN="flutter"
+  else
+    echo "[pre-commit] flutter not found. Set FLUTTER_BIN or install Flutter." >&2
+    exit 1
+  fi
+fi
+
+echo "[pre-commit] running flutter analyze..."
+"$FLUTTER_BIN" analyze
+
+echo "[pre-commit] running flutter test..."
+NO_PROXY=127.0.0.1,localhost "$FLUTTER_BIN" test
+
+echo "[pre-commit] checks passed."

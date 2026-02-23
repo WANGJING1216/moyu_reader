@@ -99,7 +99,7 @@ class LocalTxtBookImportRepository implements BookImportRepository {
       titleHits.add(_TitleHit(offset: match.start, title: title));
     }
 
-    if (titleHits.length >= 2) {
+    if (titleHits.isNotEmpty) {
       return _buildByTitleHits(content, titleHits);
     }
 
@@ -172,6 +172,10 @@ class LocalTxtBookImportRepository implements BookImportRepository {
 
   bool _isTxtFile(String fileName) {
     return fileName.toLowerCase().endsWith('.txt');
+  }
+
+  List<ChapterIndex> buildChapterIndexesForTesting(String content) {
+    return _buildChapterIndexes(content);
   }
 }
 
