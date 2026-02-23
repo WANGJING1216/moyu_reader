@@ -9,6 +9,7 @@ class ReadingProgressStorage {
   const ReadingProgressStorage();
 
   static const String storageKey = 'moyu_reader_reading_progress_v1';
+  static Future<void> _writeQueue = Future<void>.value();
 
   Future<ReadingProgress?> loadProgress(String bookId) async {
     final Map<String, ReadingProgress> all = await loadAllProgress();
@@ -19,26 +20,7 @@ class ReadingProgressStorage {
     SharedPreferences? prefs;
     try {
       prefs = await SharedPreferences.getInstance();
-      final String? raw = prefs.getString(storageKey);
-      if (raw == null || raw.trim().isEmpty) {
-        return <String, ReadingProgress>{};
-      }
-
-      final Map<String, dynamic> json = jsonDecode(raw) as Map<String, dynamic>;
-      final Map<String, ReadingProgress> result = <String, ReadingProgress>{};
-      for (final MapEntry<String, dynamic> entry in json.entries) {
-        final dynamic value = entry.value;
-        if (value is! Map<String, dynamic>) {
-          continue;
-        }
-        try {
-          final ReadingProgress parsed = ReadingProgress.fromJson(value);
-          result[entry.key] = parsed;
-        } catch (_) {
-          continue;
-        }
-      }
-      return result;
+      return _readProgressMapFromPrefs(prefs);
     } on MissingPluginException {
       return <String, ReadingProgress>{};
     } on PlatformException {
@@ -52,20 +34,52 @@ class ReadingProgressStorage {
   }
 
   Future<void> saveProgress(ReadingProgress progress) async {
-    try {
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final Map<String, ReadingProgress> all = await loadAllProgress();
-      all[progress.bookId] = progress;
+    _writeQueue = _writeQueue.then((_) async {
+      try {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        final Map<String, ReadingProgress> all = _readProgressMapFromPrefs(
+          prefs,
+        );
+        all[progress.bookId] = progress;
 
-      final Map<String, dynamic> json = <String, dynamic>{
-        for (final MapEntry<String, ReadingProgress> entry in all.entries)
-          entry.key: entry.value.toJson(),
-      };
-      await prefs.setString(storageKey, jsonEncode(json));
-    } on MissingPluginException {
-      // Keep app usable when storage plugin is unavailable.
-    } on PlatformException {
-      // Ignore persistence failure and keep reading flow available.
+        final Map<String, dynamic> json = <String, dynamic>{
+          for (final MapEntry<String, ReadingProgress> entry in all.entries)
+            entry.key: entry.value.toJson(),
+        };
+        await prefs.setString(storageKey, jsonEncode(json));
+      } on MissingPluginException {
+        // Keep app usable when storage plugin is unavailable.
+      } on PlatformException {
+        // Ignore persistence failure and keep reading flow available.
+      } catch (_) {
+        // Ignore unexpected parsing/write failure and keep reading flow available.
+      }
+    });
+    await _writeQueue;
+  }
+
+  Map<String, ReadingProgress> _readProgressMapFromPrefs(
+    SharedPreferences prefs,
+  ) {
+    final String? raw = prefs.getString(storageKey);
+    if (raw == null || raw.trim().isEmpty) {
+      return <String, ReadingProgress>{};
     }
+
+    final Map<String, dynamic> json = jsonDecode(raw) as Map<String, dynamic>;
+    final Map<String, ReadingProgress> result = <String, ReadingProgress>{};
+    for (final MapEntry<String, dynamic> entry in json.entries) {
+      final dynamic value = entry.value;
+      if (value is! Map<String, dynamic>) {
+        continue;
+      }
+      try {
+        final ReadingProgress parsed = ReadingProgress.fromJson(value);
+        result[entry.key] = parsed;
+      } catch (_) {
+        continue;
+      }
+    }
+    return result;
   }
 }

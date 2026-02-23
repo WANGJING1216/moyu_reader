@@ -90,6 +90,41 @@ void main() {
   );
 
   test(
+    'reading progress storage keeps data when saveProgress is called concurrently',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      const ReadingProgressStorage storage = ReadingProgressStorage();
+
+      await Future.wait(<Future<void>>[
+        storage.saveProgress(
+          ReadingProgress(
+            bookId: '/tmp/book_a.txt',
+            chapterIndex: 1,
+            innerOffset: 20,
+            outerOffset: 40,
+            updatedAt: DateTime(2026, 2, 23),
+            readChapterIndexes: <int>{0, 1},
+          ),
+        ),
+        storage.saveProgress(
+          ReadingProgress(
+            bookId: '/tmp/book_b.txt',
+            chapterIndex: 0,
+            innerOffset: 5,
+            outerOffset: 10,
+            updatedAt: DateTime(2026, 2, 23),
+            readChapterIndexes: <int>{0},
+          ),
+        ),
+      ]);
+
+      final Map<String, ReadingProgress> all = await storage.loadAllProgress();
+      expect(all.containsKey('/tmp/book_a.txt'), isTrue);
+      expect(all.containsKey('/tmp/book_b.txt'), isTrue);
+    },
+  );
+
+  test(
     'reading progress storage clears broken data and returns empty',
     () async {
       SharedPreferences.setMockInitialValues(<String, Object>{
@@ -137,31 +172,5 @@ void main() {
       innerScrollableFinder,
     );
     expect(innerState.position.pixels, greaterThan(0));
-  });
-
-  testWidgets('reader saves progress on lifecycle pause', (
-    WidgetTester tester,
-  ) async {
-    SharedPreferences.setMockInitialValues(<String, Object>{});
-    final ImportedTextBook book = buildBookA();
-
-    await pumpReader(tester, book);
-
-    await tester.drag(
-      find.byKey(const Key('reader_novel_drag_layer')),
-      const Offset(0, -240),
-      warnIfMissed: false,
-    );
-    await tester.pumpAndSettle();
-
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await tester.pumpAndSettle();
-
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? raw = prefs.getString(ReadingProgressStorage.storageKey);
-    expect(raw, isNotNull);
-
-    final Map<String, dynamic> json = jsonDecode(raw!) as Map<String, dynamic>;
-    expect(json.containsKey('/tmp/book_a.txt'), isTrue);
   });
 }

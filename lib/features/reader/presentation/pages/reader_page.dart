@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/router.dart';
+import '../../../../app/version_info.dart';
 import '../../../../shared/services/local_book_storage.dart';
 import '../../../../shared/services/reading_progress_storage.dart';
 import '../../../catalog/presentation/pages/catalog_page.dart';
@@ -238,10 +239,11 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
   }
 
   Widget _buildInputBar() {
+    final double bottomPadding = MediaQuery.paddingOf(context).bottom;
     return Container(
       key: const Key('reader_input_bar'),
-      height: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 70 + bottomPadding,
+      padding: EdgeInsets.fromLTRB(12, 0, 12, bottomPadding),
       decoration: const BoxDecoration(
         color: Color(0xFFF7F7F7),
         border: Border(top: BorderSide(color: Color(0xFFEAEAEA))),
@@ -289,10 +291,11 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
   }
 
   Widget _buildTopBar() {
+    final double topPadding = MediaQuery.paddingOf(context).top;
     return Container(
       key: const Key('reader_top_bar'),
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      height: 44 + topPadding,
+      padding: EdgeInsets.fromLTRB(16, topPadding, 16, 0),
       decoration: const BoxDecoration(
         color: Color(0xFFF7F7F7),
         border: Border(
@@ -314,6 +317,26 @@ class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
                   style: TextStyle(color: Color(0xFF1A7FD4), fontSize: 16),
                 ),
               ],
+            ),
+          ),
+          Align(
+            alignment: Alignment.topLeft,
+            child: Container(
+              key: const Key('reader_version_tag'),
+              margin: const EdgeInsets.only(top: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0x14000000),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                readerVersionTag,
+                style: const TextStyle(
+                  fontSize: 9,
+                  color: Color(0xFF666666),
+                  height: 1.1,
+                ),
+              ),
             ),
           ),
           const Column(

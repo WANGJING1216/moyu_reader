@@ -11,5 +11,6 @@ void main() {
     expect(find.byKey(const Key('reader_top_bar')), findsOneWidget);
     expect(find.byKey(const Key('reader_chat_area')), findsOneWidget);
     expect(find.byKey(const Key('reader_input_bar')), findsOneWidget);
+    expect(find.byKey(const Key('reader_version_tag')), findsOneWidget);
   });
 }
